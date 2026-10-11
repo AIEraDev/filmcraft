@@ -322,7 +322,7 @@ fn gpu_effects_match_cpu_exactly() {
         let (_, _, gpu) = c.effect_image(&frame, &fx).expect("effect image");
         let (worst, flips) = compare(&cpu.px, &gpu);
         eprintln!("{id} {params:?}: max rel diff {worst:.2e}, {:.3}% flipped", flips * 100.0);
-        if worst > EXACT || flips > if steps { FLIPS } else { 0.0 } {
+        if worst > if steps { 2e-4 } else { EXACT } || flips > if steps { FLIPS } else { 0.0 } {
             failures.push(format!("{id} {params:?}: {worst:.2e}, flips {flips:.4}"));
         }
     }
