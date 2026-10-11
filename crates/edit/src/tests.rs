@@ -35,11 +35,12 @@ impl Fx {
         self.seq.audio_tracks[i].id
     }
     fn item(&mut self, start: i64, dur: i64, src_in: i64) -> TrackItem {
+        let id = self.next;
         self.next += 1;
         TrackItem {
-            id: ClipId(self.next),
+            id: ClipId(id),
             item: ItemId(1),
-            name: format!("c{}", self.next),
+            name: format!("c{id}"),
             label: Label::Iris,
             start: f(start),
             duration: f(dur),
@@ -652,6 +653,49 @@ proptest! {
             let merged = merge(fx.spans(*t));
             prop_assert_eq!(merged, merge(before[k].clone()));
         }
+    }
+}
+
+
+proptest! {
+    #[test]
+    fn razor_split_preserves_tick_duration_and_source_continuity(
+        start in 0_i64..200,
+        duration in 2_i64..100,
+        cut_seed in 1_i64..100,
+        source_in in 0_i64..800,
+    ) {
+        let cut_offset = 1 + cut_seed % (duration - 1);
+        let mut fx = Fx::new();
+        let track = fx.v(0);
+        let original = fx.put(track, start, duration, source_in);
+        let original_item = fx.seq.find_item(original).unwrap().1.clone();
+        let cut_frame = start + cut_offset;
+        let cut = f(cut_frame);
+        let mut next = fx.next;
+
+        let created = razor(&mut fx.seq, &[], cut, &mut Fx::ctx(&mut next));
+        prop_assert_eq!(created.len(), 1, "a cut strictly inside one item must produce one right-hand item");
+        let right_id = created[0];
+        let left = fx.seq.find_item(original).unwrap().1;
+        let right = fx.seq.find_item(right_id).unwrap().1;
+
+        prop_assert_eq!(left.start, original_item.start);
+        prop_assert_eq!(left.end(), cut);
+        prop_assert_eq!(right.start, cut);
+        prop_assert_eq!(left.duration + right.duration, original_item.duration);
+        prop_assert_eq!(left.duration, f(cut_offset));
+        prop_assert_eq!(right.duration, f(duration - cut_offset));
+
+        // The last tick/frame immediately before the cut and the first source position on the
+        // right piece must describe continuous media at the cut. This exercises real edit algebra,
+        // not a duplicate test implementation in Clypra.
+        let before_cut = left.source_time_at(cut - f(1));
+        let at_right_start = right.source_time_at(cut);
+        prop_assert_eq!(before_cut + f(1), at_right_start);
+
+        fx.next = next;
+        prop_assert!(fx.seq.check().is_ok(), "sequence invariant failed after razor: {:?}", fx.seq.check());
     }
 }
 
