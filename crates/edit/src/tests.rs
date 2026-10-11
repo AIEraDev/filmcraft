@@ -35,11 +35,12 @@ impl Fx {
         self.seq.audio_tracks[i].id
     }
     fn item(&mut self, start: i64, dur: i64, src_in: i64) -> TrackItem {
+        let id = self.next;
         self.next += 1;
         TrackItem {
-            id: ClipId(self.next),
+            id: ClipId(id),
             item: ItemId(1),
-            name: format!("c{}", self.next),
+            name: format!("c{id}"),
             label: Label::Iris,
             start: f(start),
             duration: f(dur),
